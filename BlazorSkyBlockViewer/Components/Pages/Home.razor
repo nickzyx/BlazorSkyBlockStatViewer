@@ -1,0 +1,82 @@
+﻿@page "/"
+
+@inject HypixelService HypixelService
+
+<h3>Hypixel Skyblock Stat Viewer</h3>
+
+<div>
+    <label>Enter Player Username:</label>
+    <input @bind="Username" placeholder="Minecraft Username" />
+    <button @onclick="GetStats">Fetch Stats</button>
+</div>
+
+@if (ErrorMessage != null)
+{
+    <p style="color:red">@ErrorMessage</p>
+}
+
+@if (Profiles != null)
+{
+    foreach (var profile in Profiles)
+    {
+        <div style="border:1px solid black; padding:10px; margin:10px;">
+            <h4>Profile Name: @profile.Name</h4>
+            <p>Coins: @profile.Coins</p>
+            <p>Last Save: @profile.LastSave</p>
+        </div>
+    }
+}
+
+@code {
+    private string Username;
+    private string ErrorMessage;
+    private List<ProfileData> Profiles;
+
+    private async Task GetStats()
+    {
+        ErrorMessage = null;
+        Profiles = null;
+
+        try
+        {
+            // Get UUID from username
+            var uuid = await HypixelService.GetPlayerUUIDAsync(Username);
+
+            if (uuid == null)
+            {
+                ErrorMessage = "Player not found!";
+                return;
+            }
+
+            // Fetch Skyblock stats
+            var data = await HypixelService.FetchSkyblockStatsAsync(uuid);
+
+            if (data["profiles"] == null)
+            {
+                ErrorMessage = "No Skyblock profiles found for this player.";
+                return;
+            }
+
+            // Parse profiles
+            Profiles = data["profiles"]
+                .Select(profile => new ProfileData
+                    {
+                        Name = profile["cute_name"]?.ToString(),
+                        Coins = profile["members"]?[uuid]?["coin_purse"]?.ToObject<double>() ?? 0,
+                        LastSave = profile["members"]?[uuid]?["last_save"]?.ToObject<long>().ToString()
+                    })
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error fetching stats: {ex.Message}";
+        }
+    }
+
+    public class ProfileData
+    {
+        public string Name { get; set; }
+        public double Coins { get; set; }
+        public string LastSave { get; set; }
+    }
+}
